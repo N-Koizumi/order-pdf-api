@@ -140,9 +140,10 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
 
     if len(doc) >= 3:
         p3 = doc[2]
-        p3.insert_text((410.0, 81.0), issue_parts[0], fontname="helv", fontsize=9.7)
-        p3.insert_text((470.0, 81.0), issue_parts[1], fontname="helv", fontsize=9.7)
-        p3.insert_text((516.0, 81.0), issue_parts[2], fontname="helv", fontsize=9.7)
+        # 【変更箇所】提出日（発行日）の印字をコメントアウトして空白化
+        # p3.insert_text((410.0, 81.0), issue_parts[0], fontname="helv", fontsize=9.7)
+        # p3.insert_text((470.0, 81.0), issue_parts[1], fontname="helv", fontsize=9.7)
+        # p3.insert_text((516.0, 81.0), issue_parts[2], fontname="helv", fontsize=9.7)
         p3.insert_image(fitz.Rect(346.3, 116.3, 545.7, 166.3), filename=STAMP_PATH)
         draw_delivery_date(p3)
         p3.insert_text((441.2, 253.5), delivery_place, fontname="japan", fontsize=9.7)
@@ -151,9 +152,10 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
 
     if len(doc) >= 4:
         p4 = doc[3]
-        p4.insert_text((410.0, 81.0), issue_parts[0], fontname="helv", fontsize=9.7)
-        p4.insert_text((470.0, 81.0), issue_parts[1], fontname="helv", fontsize=9.7)
-        p4.insert_text((516.0, 81.0), issue_parts[2], fontname="helv", fontsize=9.7)
+        # 【変更箇所】提出日（発行日）の印字をコメントアウトして空白化
+        # p4.insert_text((410.0, 81.0), issue_parts[0], fontname="helv", fontsize=9.7)
+        # p4.insert_text((470.0, 81.0), issue_parts[1], fontname="helv", fontsize=9.7)
+        # p4.insert_text((516.0, 81.0), issue_parts[2], fontname="helv", fontsize=9.7)
         p4.insert_image(fitz.Rect(346.3, 128.3, 545.7, 178.3), filename=STAMP_PATH)
         draw_delivery_date(p4)
         p4.insert_text((441.2, 253.5), delivery_place, fontname="japan", fontsize=9.7)
