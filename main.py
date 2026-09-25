@@ -2,6 +2,7 @@ import os
 import io
 import base64
 import re
+import math  # 切り捨て処理用に追加
 import fitz  # PyMuPDF
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
@@ -20,12 +21,14 @@ app.add_middleware(
 STAMP_PATH = os.path.join(os.path.dirname(__file__), "stamp.png")
 DEFAULT_PASSWORDS = ["00069958"]
 
-def insert_currency(page, x, y, amount_val, font_size=9.7, use_serif=True):
-    num_font = "tiro" if use_serif else "helv"
-    num_str = f"{amount_val:,}"
-    num_len = fitz.get_text_length(num_str, fontname=num_font, fontsize=font_size)
-    page.insert_text((x, y), num_str, fontname=num_font, fontsize=font_size)
-    page.insert_text((x + num_len + 1.0, y), "円", fontname="japan", fontsize=font_size)
+def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.7, rect_width=120.0, rect_height=15.0):
+    """
+    指定した右端X座標（x_right）に合わせて「金額 + 円」を右揃えで印字します。
+    """
+    num_str = f"{amount_val:,}円"
+    # 右端座標に合わせて左端（x_left）を計算して枠を設定
+    rect = fitz.Rect(x_right - rect_width, y_top, x_right, y_top + rect_height)
+    page.insert_textbox(rect, num_str, fontname="japan", fontsize=font_size, align=fitz.TEXT_ALIGN_RIGHT)
 
 def extract_metadata(doc):
     p1 = doc[0]
@@ -59,7 +62,8 @@ def extract_metadata(doc):
     if not amount_int:
         raise ValueError("金額を自動抽出できませんでした。")
 
-    tax_int = int(round(amount_int * 0.10))
+    # 【変更箇所】消費税を切り捨て（math.floor）で計算
+    tax_int = math.floor(amount_int * 0.10)
     total_int = amount_int + tax_int
 
     # 3. 納期
@@ -121,10 +125,17 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
         page.insert_text((508.0, 235.0), due_parts[2], fontname="helv", fontsize=9.7)
         
     def draw_amounts(page):
-        insert_currency(page, 471.9, 476.0, amount_int, font_size=9.7)
-        page.insert_text((471.9, 498.0), "10", fontname="helv", fontsize=9.7)
-        insert_currency(page, 471.9, 523.0, tax_int, font_size=9.7)
-        insert_currency(page, 471.9, 545.0, total_int, font_size=9.7)
+        # 【変更箇所】右端の位置（X=530.0付近）に合わせて右揃えで印字
+        X_RIGHT = 530.0
+        
+        insert_currency_right_aligned(page, X_RIGHT, 476.0, amount_int, font_size=9.7)
+        
+        # 税率10%の「10」部分も右揃え枠で配置
+        rect_tax_rate = fitz.Rect(X_RIGHT - 50.0, 498.0, X_RIGHT - 30.0, 498.0 + 15.0)
+        page.insert_textbox(rect_tax_rate, "10", fontname="helv", fontsize=9.7, align=fitz.TEXT_ALIGN_RIGHT)
+        
+        insert_currency_right_aligned(page, X_RIGHT, 523.0, tax_int, font_size=9.7)
+        insert_currency_right_aligned(page, X_RIGHT, 545.0, total_int, font_size=9.7)
         
     def draw_tax_circle(page):
         shape = page.new_shape()
@@ -140,10 +151,6 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
 
     if len(doc) >= 3:
         p3 = doc[2]
-        # 【変更箇所】提出日（発行日）の印字をコメントアウトして空白化
-        # p3.insert_text((410.0, 81.0), issue_parts[0], fontname="helv", fontsize=9.7)
-        # p3.insert_text((470.0, 81.0), issue_parts[1], fontname="helv", fontsize=9.7)
-        # p3.insert_text((516.0, 81.0), issue_parts[2], fontname="helv", fontsize=9.7)
         p3.insert_image(fitz.Rect(346.3, 116.3, 545.7, 166.3), filename=STAMP_PATH)
         draw_delivery_date(p3)
         p3.insert_text((441.2, 253.5), delivery_place, fontname="japan", fontsize=9.7)
@@ -152,10 +159,6 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
 
     if len(doc) >= 4:
         p4 = doc[3]
-        # 【変更箇所】提出日（発行日）の印字をコメントアウトして空白化
-        # p4.insert_text((410.0, 81.0), issue_parts[0], fontname="helv", fontsize=9.7)
-        # p4.insert_text((470.0, 81.0), issue_parts[1], fontname="helv", fontsize=9.7)
-        # p4.insert_text((516.0, 81.0), issue_parts[2], fontname="helv", fontsize=9.7)
         p4.insert_image(fitz.Rect(346.3, 128.3, 545.7, 178.3), filename=STAMP_PATH)
         draw_delivery_date(p4)
         p4.insert_text((441.2, 253.5), delivery_place, fontname="japan", fontsize=9.7)
