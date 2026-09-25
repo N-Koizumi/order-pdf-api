@@ -21,15 +21,26 @@ app.add_middleware(
 STAMP_PATH = os.path.join(os.path.dirname(__file__), "stamp.png")
 DEFAULT_PASSWORDS = ["00069958"]
 
-def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.7):
+def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.7, use_serif=True):
     """
-    指定した右端X座標（x_right）に合わせて「金額 + 円」を右揃えで印字します。
-    枠幅(rect_width)を十分大きく取り、文字あふれによる消去を防止しています。
+    描画幅を事前に計算し、右端(x_right)にぴったり揃うよう左開始位置を逆算して直接印字します。
+    これにより、文字間の広がりを防ぎ、希望のフォントスタイルを維持できます。
     """
-    num_str = f"{amount_val:,}円"
-    # 右端から左へ250pt伸ばした十分広い枠を設定（Y軸も高さを確保）
-    rect = fitz.Rect(x_right - 250.0, y_top - 2.0, x_right, y_top + 18.0)
-    page.insert_textbox(rect, num_str, fontname="japan", fontsize=font_size, align=fitz.TEXT_ALIGN_RIGHT)
+    num_font = "tiro" if use_serif else "helv"
+    num_str = f"{amount_val:,}"
+    
+    # 1. 数字部分と「円」の描画幅を計算
+    num_len = fitz.get_text_length(num_str, fontname=num_font, fontsize=font_size)
+    yen_len = fitz.get_text_length("円", fontname="japan", fontsize=font_size)
+    
+    total_len = num_len + 1.0 + yen_len  # 全体の幅
+    
+    # 2. 右端 (x_right) から逆算して開始X座標を決定
+    start_x = x_right - total_len
+    
+    # 3. 印字（insert_textを使うため文字間が開かない）
+    page.insert_text((start_x, y_top), num_str, fontname=num_font, fontsize=font_size)
+    page.insert_text((start_x + num_len + 1.0, y_top), "円", fontname="japan", fontsize=font_size)
 
 def extract_metadata(doc):
     p1 = doc[0]
@@ -126,17 +137,20 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
         page.insert_text((508.0, 235.0), due_parts[2], fontname="helv", fontsize=9.7)
         
     def draw_amounts(page):
-        # 印字する右端の基準座標（表示位置を左右に変更したい場合はこの数値を調整してください）
+        # 揃えたい右端のX座標
         X_RIGHT = 530.0
         
-        insert_currency_right_aligned(page, X_RIGHT, 476.0, amount_int, font_size=9.7)
+        # use_serif=True にすることで元のSerif系フォント(tiro)で右揃え印字されます。
+        # サンセリフ(helv)にしたい場合は use_serif=False にしてください。
+        insert_currency_right_aligned(page, X_RIGHT, 476.0, amount_int, font_size=9.7, use_serif=True)
         
-        # 税率「10」の表示（右揃え・枠を十分に確保）
-        rect_tax_rate = fitz.Rect(X_RIGHT - 100.0, 498.0 - 2.0, X_RIGHT, 498.0 + 18.0)
-        page.insert_textbox(rect_tax_rate, "10", fontname="helv", fontsize=9.7, align=fitz.TEXT_ALIGN_RIGHT)
+        # 税率「10」の表示（右揃え位置計算）
+        tax_rate_str = "10"
+        tax_rate_len = fitz.get_text_length(tax_rate_str, fontname="helv", fontsize=9.7)
+        page.insert_text((X_RIGHT - tax_rate_len, 498.0), tax_rate_str, fontname="helv", fontsize=9.7)
         
-        insert_currency_right_aligned(page, X_RIGHT, 523.0, tax_int, font_size=9.7)
-        insert_currency_right_aligned(page, X_RIGHT, 545.0, total_int, font_size=9.7)
+        insert_currency_right_aligned(page, X_RIGHT, 523.0, tax_int, font_size=9.7, use_serif=True)
+        insert_currency_right_aligned(page, X_RIGHT, 545.0, total_int, font_size=9.7, use_serif=True)
         
     def draw_tax_circle(page):
         shape = page.new_shape()
