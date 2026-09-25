@@ -28,7 +28,7 @@ def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.
     """
     num_str = f"{amount_val:,}"  # 余計なスペース無しの純粋な文字列「187,500」
     
-    # 1. 数字(helv)と「円」(japan)の幅をそれぞれ高精度で取得
+    # 1. 数字(helv)と「円」(japan)の幅をそれぞれ取得
     num_len = fitz.get_text_length(num_str, fontname="helv", fontsize=font_size)
     yen_len = fitz.get_text_length("円", fontname="japan", fontsize=font_size)
     
@@ -37,7 +37,7 @@ def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.
     total_len = num_len + gap + yen_len
     start_x = x_right - total_len
     
-    # 2. 数字部分を単独描画（helvフォントによりカンマが綺麗に収まります）
+    # 2. 数字部分を単独描画
     page.insert_text((start_x, y_top), num_str, fontname="helv", fontsize=font_size)
     
     # 3. 「円」を数字の直後に描画
@@ -144,8 +144,8 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
         # 1. 抜計金額（「187,500円」の形式で右揃え印字）
         insert_currency_right_aligned(page, X_RIGHT, 476.0, amount_int, font_size=9.7)
         
-        # 2. 適用税率「10%」の表示（右揃え計算）
-        tax_rate_str = "10%"
+        # 2. 適用税率「10」の表示（「%」は元々入っているため数値のみ右揃えで印字）
+        tax_rate_str = "10"
         tax_rate_len = fitz.get_text_length(tax_rate_str, fontname="helv", fontsize=9.7)
         page.insert_text((X_RIGHT - tax_rate_len, 498.0), tax_rate_str, fontname="helv", fontsize=9.7)
         
