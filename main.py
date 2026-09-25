@@ -21,23 +21,27 @@ app.add_middleware(
 STAMP_PATH = os.path.join(os.path.dirname(__file__), "stamp.png")
 DEFAULT_PASSWORDS = ["00069958"]
 
-def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.7, use_serif=True):
+def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.7):
     """
-    先頭に「¥」を付与し、単一フォントで右揃え印字します。
-    和字と英数字の混在がないため、カンマの被りや位置ズレが発生せず、
-    コピペ時にも余分なスペースが入らないデータ構造になります。
+    「数字（カンマ入り）」と「円」をきれいな文字組みで右揃え印字します。
+    標準英数フォント(helv)を使用することでカンマの文字被りを完全に防ぎます。
     """
-    num_font = "tiro" if use_serif else "helv"
+    num_str = f"{amount_val:,}"  # 余計なスペース無しの純粋な文字列「187,500」
     
-    # 1. 「¥187,500」という1つの文字列を作成
-    num_str = f"¥{amount_val:,}"
+    # 1. 数字(helv)と「円」(japan)の幅をそれぞれ高精度で取得
+    num_len = fitz.get_text_length(num_str, fontname="helv", fontsize=font_size)
+    yen_len = fitz.get_text_length("円", fontname="japan", fontsize=font_size)
     
-    # 2. 全体の描画幅を一括取得
-    total_len = fitz.get_text_length(num_str, fontname=num_font, fontsize=font_size)
-    
-    # 3. 右端(x_right)から逆算して印字
+    # 全体幅（数字 + 0.8ptの自然な間隔 + 円）
+    gap = 0.8
+    total_len = num_len + gap + yen_len
     start_x = x_right - total_len
-    page.insert_text((start_x, y_top), num_str, fontname=num_font, fontsize=font_size)
+    
+    # 2. 数字部分を単独描画（helvフォントによりカンマが綺麗に収まります）
+    page.insert_text((start_x, y_top), num_str, fontname="helv", fontsize=font_size)
+    
+    # 3. 「円」を数字の直後に描画
+    page.insert_text((start_x + num_len + gap, y_top), "円", fontname="japan", fontsize=font_size)
 
 def extract_metadata(doc):
     p1 = doc[0]
@@ -134,11 +138,11 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
         page.insert_text((508.0, 235.0), due_parts[2], fontname="helv", fontsize=9.7)
         
     def draw_amounts(page):
-        # 揃えたい右端の基準X座標
+        # 右端の基準X座標
         X_RIGHT = 530.0
         
-        # 1. 抜計金額（「¥187,500」形式で右揃え印字）
-        insert_currency_right_aligned(page, X_RIGHT, 476.0, amount_int, font_size=9.7, use_serif=True)
+        # 1. 抜計金額（「187,500円」の形式で右揃え印字）
+        insert_currency_right_aligned(page, X_RIGHT, 476.0, amount_int, font_size=9.7)
         
         # 2. 適用税率「10%」の表示（右揃え計算）
         tax_rate_str = "10%"
@@ -146,10 +150,10 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
         page.insert_text((X_RIGHT - tax_rate_len, 498.0), tax_rate_str, fontname="helv", fontsize=9.7)
         
         # 3. 消費税額（切り捨て）
-        insert_currency_right_aligned(page, X_RIGHT, 523.0, tax_int, font_size=9.7, use_serif=True)
+        insert_currency_right_aligned(page, X_RIGHT, 523.0, tax_int, font_size=9.7)
         
         # 4. 請求額（合計）
-        insert_currency_right_aligned(page, X_RIGHT, 545.0, total_int, font_size=9.7, use_serif=True)
+        insert_currency_right_aligned(page, X_RIGHT, 545.0, total_int, font_size=9.7)
         
     def draw_tax_circle(page):
         shape = page.new_shape()
