@@ -2,7 +2,7 @@ import os
 import io
 import base64
 import re
-import math  # 切り捨て処理用に追加
+import math  # 切り捨て処理用
 import fitz  # PyMuPDF
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
@@ -21,13 +21,14 @@ app.add_middleware(
 STAMP_PATH = os.path.join(os.path.dirname(__file__), "stamp.png")
 DEFAULT_PASSWORDS = ["00069958"]
 
-def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.7, rect_width=120.0, rect_height=15.0):
+def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.7):
     """
     指定した右端X座標（x_right）に合わせて「金額 + 円」を右揃えで印字します。
+    枠幅(rect_width)を十分大きく取り、文字あふれによる消去を防止しています。
     """
     num_str = f"{amount_val:,}円"
-    # 右端座標に合わせて左端（x_left）を計算して枠を設定
-    rect = fitz.Rect(x_right - rect_width, y_top, x_right, y_top + rect_height)
+    # 右端から左へ250pt伸ばした十分広い枠を設定（Y軸も高さを確保）
+    rect = fitz.Rect(x_right - 250.0, y_top - 2.0, x_right, y_top + 18.0)
     page.insert_textbox(rect, num_str, fontname="japan", fontsize=font_size, align=fitz.TEXT_ALIGN_RIGHT)
 
 def extract_metadata(doc):
@@ -62,7 +63,7 @@ def extract_metadata(doc):
     if not amount_int:
         raise ValueError("金額を自動抽出できませんでした。")
 
-    # 【変更箇所】消費税を切り捨て（math.floor）で計算
+    # 消費税は切り捨て（math.floor）で計算
     tax_int = math.floor(amount_int * 0.10)
     total_int = amount_int + tax_int
 
@@ -125,13 +126,13 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
         page.insert_text((508.0, 235.0), due_parts[2], fontname="helv", fontsize=9.7)
         
     def draw_amounts(page):
-        # 【変更箇所】右端の位置（X=530.0付近）に合わせて右揃えで印字
+        # 印字する右端の基準座標（表示位置を左右に変更したい場合はこの数値を調整してください）
         X_RIGHT = 530.0
         
         insert_currency_right_aligned(page, X_RIGHT, 476.0, amount_int, font_size=9.7)
         
-        # 税率10%の「10」部分も右揃え枠で配置
-        rect_tax_rate = fitz.Rect(X_RIGHT - 50.0, 498.0, X_RIGHT - 30.0, 498.0 + 15.0)
+        # 税率「10」の表示（右揃え・枠を十分に確保）
+        rect_tax_rate = fitz.Rect(X_RIGHT - 100.0, 498.0 - 2.0, X_RIGHT, 498.0 + 18.0)
         page.insert_textbox(rect_tax_rate, "10", fontname="helv", fontsize=9.7, align=fitz.TEXT_ALIGN_RIGHT)
         
         insert_currency_right_aligned(page, X_RIGHT, 523.0, tax_int, font_size=9.7)
