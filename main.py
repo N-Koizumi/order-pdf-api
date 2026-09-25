@@ -2,7 +2,7 @@ import os
 import io
 import base64
 import re
-import math  # 切り捨て処理用
+import math  # 端数切り捨て用
 import fitz  # PyMuPDF
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
@@ -23,24 +23,21 @@ DEFAULT_PASSWORDS = ["00069958"]
 
 def insert_currency_right_aligned(page, x_right, y_top, amount_val, font_size=9.7, use_serif=True):
     """
-    描画幅を事前に計算し、右端(x_right)にぴったり揃うよう左開始位置を逆算して直接印字します。
-    これにより、文字間の広がりを防ぎ、希望のフォントスタイルを維持できます。
+    先頭に「¥」を付与し、単一フォントで右揃え印字します。
+    和字と英数字の混在がないため、カンマの被りや位置ズレが発生せず、
+    コピペ時にも余分なスペースが入らないデータ構造になります。
     """
     num_font = "tiro" if use_serif else "helv"
-    num_str = f"{amount_val:,}"
     
-    # 1. 数字部分と「円」の描画幅を計算
-    num_len = fitz.get_text_length(num_str, fontname=num_font, fontsize=font_size)
-    yen_len = fitz.get_text_length("円", fontname="japan", fontsize=font_size)
+    # 1. 「¥187,500」という1つの文字列を作成
+    num_str = f"¥{amount_val:,}"
     
-    total_len = num_len + 1.0 + yen_len  # 全体の幅
+    # 2. 全体の描画幅を一括取得
+    total_len = fitz.get_text_length(num_str, fontname=num_font, fontsize=font_size)
     
-    # 2. 右端 (x_right) から逆算して開始X座標を決定
+    # 3. 右端(x_right)から逆算して印字
     start_x = x_right - total_len
-    
-    # 3. 印字（insert_textを使うため文字間が開かない）
     page.insert_text((start_x, y_top), num_str, fontname=num_font, fontsize=font_size)
-    page.insert_text((start_x + num_len + 1.0, y_top), "円", fontname="japan", fontsize=font_size)
 
 def extract_metadata(doc):
     p1 = doc[0]
@@ -74,7 +71,7 @@ def extract_metadata(doc):
     if not amount_int:
         raise ValueError("金額を自動抽出できませんでした。")
 
-    # 消費税は切り捨て（math.floor）で計算
+    # 消費税は端数切り捨て（math.floor）で計算
     tax_int = math.floor(amount_int * 0.10)
     total_int = amount_int + tax_int
 
@@ -137,19 +134,21 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
         page.insert_text((508.0, 235.0), due_parts[2], fontname="helv", fontsize=9.7)
         
     def draw_amounts(page):
-        # 揃えたい右端のX座標
+        # 揃えたい右端の基準X座標
         X_RIGHT = 530.0
         
-        # use_serif=True にすることで元のSerif系フォント(tiro)で右揃え印字されます。
-        # サンセリフ(helv)にしたい場合は use_serif=False にしてください。
+        # 1. 抜計金額（「¥187,500」形式で右揃え印字）
         insert_currency_right_aligned(page, X_RIGHT, 476.0, amount_int, font_size=9.7, use_serif=True)
         
-        # 税率「10」の表示（右揃え位置計算）
-        tax_rate_str = "10"
+        # 2. 適用税率「10%」の表示（右揃え計算）
+        tax_rate_str = "10%"
         tax_rate_len = fitz.get_text_length(tax_rate_str, fontname="helv", fontsize=9.7)
         page.insert_text((X_RIGHT - tax_rate_len, 498.0), tax_rate_str, fontname="helv", fontsize=9.7)
         
+        # 3. 消費税額（切り捨て）
         insert_currency_right_aligned(page, X_RIGHT, 523.0, tax_int, font_size=9.7, use_serif=True)
+        
+        # 4. 請求額（合計）
         insert_currency_right_aligned(page, X_RIGHT, 545.0, total_int, font_size=9.7, use_serif=True)
         
     def draw_tax_circle(page):
