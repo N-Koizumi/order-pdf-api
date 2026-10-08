@@ -79,7 +79,7 @@ def extract_metadata(doc):
     tax_int = math.floor(amount_int * 0.10)
     total_int = amount_int + tax_int
 
-    # 3. 納期
+    # 3. 納期（納品日）
     due_parts = ["2026", "08", "31"]
     for b in p1_blocks:
         if 180 < b[1] < 215 and b[0] > 400:
@@ -97,7 +97,8 @@ def extract_metadata(doc):
                 issue_parts = nums[:3]
                 break
 
-    year_month = f"{issue_parts[0]}年{int(issue_parts[1]):02d}月"
+    # ★ フォルダ分け用の年月を「納期（due_parts）」から生成するように変更
+    year_month = f"{due_parts[0]}年{int(due_parts[1]):02d}月"
 
     return {
         "client_name": client_name,
@@ -133,31 +134,22 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
     delivery_place = meta["delivery_place"]
 
     def draw_delivery_date(page):
-        # Y座標を235.0 -> 240.0 へ5px下移動
         page.insert_text((422.0, 240.0), due_parts[0], fontname="helv", fontsize=9.7)
         page.insert_text((469.0, 240.0), due_parts[1], fontname="helv", fontsize=9.7)
         page.insert_text((508.0, 240.0), due_parts[2], fontname="helv", fontsize=9.7)
         
     def draw_amounts(page):
-        # 右端の基準X座標
         X_RIGHT = 530.0
-        
-        # 1. 抜計金額（Y座標 476.0 -> 481.0）
         insert_currency_right_aligned(page, X_RIGHT, 481.0, amount_int, font_size=9.7)
         
-        # 2. 適用税率「10」（Y座標 498.0 -> 503.0）
         tax_rate_str = "10"
         tax_rate_len = fitz.get_text_length(tax_rate_str, fontname="helv", fontsize=9.7)
         page.insert_text((X_RIGHT - tax_rate_len, 503.0), tax_rate_str, fontname="helv", fontsize=9.7)
         
-        # 3. 消費税額（Y座標 523.0 -> 528.0）
         insert_currency_right_aligned(page, X_RIGHT, 528.0, tax_int, font_size=9.7)
-        
-        # 4. 請求額（Y座標 545.0 -> 550.0）
         insert_currency_right_aligned(page, X_RIGHT, 550.0, total_int, font_size=9.7)
         
     def draw_tax_circle(page):
-        # 金額の下移動に合わせて丸印のY座標も5px下へ（559.0〜574.5 -> 564.0〜579.5）
         shape = page.new_shape()
         shape.draw_oval(fitz.Rect(398.5, 564.0, 412.5, 579.5))
         shape.finish(color=(0, 0, 0), width=0.8)
@@ -171,20 +163,16 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
 
     if len(doc) >= 3:
         p3 = doc[2]
-        # スタンプ画像を幅・高さともに約1.15倍に拡大 (Rect: x1, y1, x2, y2)
         p3.insert_image(fitz.Rect(315.7, 110.0, 545.7, 168.0), filename=STAMP_PATH)
         draw_delivery_date(p3)
-        # 納入場所のY座標を 253.5 -> 258.5 へ5px下移動
         p3.insert_text((441.2, 258.5), delivery_place, fontname="japan", fontsize=9.7)
         draw_amounts(p3)
         draw_tax_circle(p3)
 
     if len(doc) >= 4:
         p4 = doc[3]
-        # スタンプ画像を幅・高さともに約1.15倍に拡大 (Rect: x1, y1, x2, y2)
         p4.insert_image(fitz.Rect(315.7, 122.0, 545.7, 180.0), filename=STAMP_PATH)
         draw_delivery_date(p4)
-        # 納入場所のY座標を 253.5 -> 258.5 へ5px下移動
         p4.insert_text((441.2, 258.5), delivery_place, fontname="japan", fontsize=9.7)
         draw_amounts(p4)
         draw_tax_circle(p4)
