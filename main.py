@@ -134,29 +134,27 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
     delivery_place = meta["delivery_place"]
 
     def draw_delivery_date(page):
-        # 調整前の 235.0 に復元
         page.insert_text((422.0, 235.0), due_parts[0], fontname="helv", fontsize=9.7)
         page.insert_text((469.0, 235.0), due_parts[1], fontname="helv", fontsize=9.7)
         page.insert_text((508.0, 235.0), due_parts[2], fontname="helv", fontsize=9.7)
         
     def draw_amounts(page):
         X_RIGHT = 530.0
-        # 481.0 から 2px 上げ (479.0)
+        # 1. 抜計金額
         insert_currency_right_aligned(page, X_RIGHT, 479.0, amount_int, font_size=9.7)
         
-        # 503.0 から 2px 上げ (501.0)
+        # 2. 適用税率「10」
         tax_rate_str = "10"
         tax_rate_len = fitz.get_text_length(tax_rate_str, fontname="helv", fontsize=9.7)
-        page.insert_text((X_RIGHT - tax_rate_len, 501.0), tax_rate_str, fontname="helv", fontsize=9.7)
+        page.insert_text((X_RIGHT - tax_rate_len, 503.0), tax_rate_str, fontname="helv", fontsize=9.7)
         
-        # 528.0 から 2px 上げ (526.0)
+        # 3. 消費税額
         insert_currency_right_aligned(page, X_RIGHT, 526.0, tax_int, font_size=9.7)
         
-        # 550.0 から 2px 上げ (548.0)
-        insert_currency_right_aligned(page, X_RIGHT, 548.0, total_int, font_size=9.7)
+        # 4. 請求額
+        insert_currency_right_aligned(page, X_RIGHT, 550.0, total_int, font_size=9.7)
         
     def draw_tax_circle(page):
-        # 調整前の 559.0〜574.5 に復元
         shape = page.new_shape()
         shape.draw_oval(fitz.Rect(398.5, 559.0, 412.5, 574.5))
         shape.finish(color=(0, 0, 0), width=0.8)
@@ -170,9 +168,9 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
 
     if len(doc) >= 3:
         p3 = doc[2]
-        p3.insert_image(fitz.Rect(338.7, 125.0, 545.7, 177.2), filename=STAMP_PATH)
+        # 3ページ目: さらに90%縮小 & 上位置10pt引き上げ
+        p3.insert_image(fitz.Rect(359.4, 115.0, 545.7, 162.0), filename=STAMP_PATH)
         draw_delivery_date(p3)
-        # 調整前の 253.5 に復元
         p3.insert_text((441.2, 253.5), delivery_place, fontname="japan", fontsize=9.7)
         draw_amounts(p3)
         draw_tax_circle(p3)
@@ -181,7 +179,6 @@ def process_pdf_bytes(pdf_bytes: bytes, filename: str):
         p4 = doc[3]
         p4.insert_image(fitz.Rect(315.7, 122.0, 545.7, 180.0), filename=STAMP_PATH)
         draw_delivery_date(p4)
-        # 調整前の 253.5 に復元
         p4.insert_text((441.2, 253.5), delivery_place, fontname="japan", fontsize=9.7)
         draw_amounts(p4)
         draw_tax_circle(p4)
